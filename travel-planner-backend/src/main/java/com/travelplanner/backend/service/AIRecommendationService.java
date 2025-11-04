@@ -42,7 +42,7 @@ public class AIRecommendationService {
                 RETURN ONLY VALID JSON (no other text):
                 {
                   "recommendedMode": "car/train/bus/flight",
-                  "distanceEstimate": 123.45,
+                  "distanceEstimate": realistic calculation of distance in km,
                   "confidenceScore": 0.85,
                   "reasoning": "Brief practical explanation"
                 }

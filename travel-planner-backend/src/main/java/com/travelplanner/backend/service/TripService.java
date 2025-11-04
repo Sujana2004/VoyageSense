@@ -2,17 +2,23 @@ package com.travelplanner.backend.service;
 
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CompletableFuture;
+import java.util.stream.Collectors;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
-
+import org.springframework.scheduling.annotation.Async;
+import org.springframework.scheduling.annotation.EnableAsync;
 import com.travelplanner.backend.Entities.ChatHistory;
+
 import com.travelplanner.backend.Entities.Trip;
 import com.travelplanner.backend.Entities.User;
 import com.travelplanner.backend.dto.PlaceRecommendationResponse;
 import com.travelplanner.backend.dto.TripRequest;
+import com.travelplanner.backend.dto.TripResponseDTO;
 import com.travelplanner.backend.dto.WeatherAnalysis;
+import com.travelplanner.backend.repository.ChatHistoryRepository;
 import com.travelplanner.backend.repository.TripRepository;
 
 @Service
@@ -27,12 +33,13 @@ public class TripService {
     private final AIRecommendationService aiRecommendationService;
     private final PlaceRecommendationService placeRecommendationService;
     private final ChatService chatService;
+    private final ChatHistoryRepository chatHistoryRepository;
     
     public TripService(TripRepository tripRepository, UserService userService,
             GeocodingService geocodingService, WeatherService weatherService,
             AIRecommendationService aiRecommendationService, FamousPlaceService famousPlaceService,
             PlaceRecommendationService placeRecommendationService,
-            ChatService chatService) {
+            ChatService chatService,ChatHistoryRepository chatHistoryRepository) {
         this.tripRepository = tripRepository;
         this.userService = userService;
         this.geocodingService = geocodingService;
@@ -40,6 +47,7 @@ public class TripService {
         this.aiRecommendationService = aiRecommendationService;
         this.placeRecommendationService = placeRecommendationService;
         this.chatService = chatService;
+        this.chatHistoryRepository = chatHistoryRepository;
     }
 
     public Trip createTrip(TripRequest request, String username) {
@@ -79,15 +87,33 @@ public class TripService {
                 destWeather.getCondition()
             );
             
-            // ✅ NEW: Store trip planning in ChatHistory
-            String tripPlanningMessage = buildTripPlanningMessage(request, sourceWeather, destWeather, recommendations);
             String conversationId = "trip_" + System.currentTimeMillis();
             
-            ChatHistory tripChat = chatService.processMessage(tripPlanningMessage, username, conversationId);
+//            // ✅ NEW: Store trip planning in ChatHistory
+//            String tripPlanningMessage = buildTripPlanningMessage(request, sourceWeather, destWeather, recommendations);
+//            
+//            
+//            ChatHistory tripChat = chatService.processMessage(tripPlanningMessage, username, conversationId);
+//            
+//            // ✅ NEW: Store place recommendations in chat history
+//            String placeRecommendationPrompt = buildPlaceRecommendationPrompt(request);
+//            ChatHistory placeChat = chatService.processMessage(placeRecommendationPrompt, username, conversationId);
             
-            // ✅ NEW: Store place recommendations in chat history
-            String placeRecommendationPrompt = buildPlaceRecommendationPrompt(request);
-            ChatHistory placeChat = chatService.processMessage(placeRecommendationPrompt, username, conversationId);
+            CompletableFuture.runAsync(() -> {
+                try {
+                    log.info("Starting async chat history creation for trip {}", conversationId);
+                    
+                    String tripPlanningMessage = buildTripPlanningMessage(request, sourceWeather, destWeather, recommendations);
+                    chatService.processMessage(tripPlanningMessage, username, conversationId);
+                    
+                    String placeRecommendationPrompt = buildPlaceRecommendationPrompt(request);
+                    chatService.processMessage(placeRecommendationPrompt, username, conversationId);
+                    
+                    log.info("Completed async chat history creation for trip {}", conversationId);
+                } catch (Exception e) {
+                    log.error("Failed to create chat history for trip {}", conversationId, e);
+                }
+            });
 
             Trip trip = new Trip();
             trip.setUser(user);
@@ -166,19 +192,63 @@ public class TripService {
         return analysis;
     }
 
-    public List<Trip> getUserTrips(String username) {
-        return tripRepository.findByUserUsername(username);
+    public List<TripResponseDTO> getUserTrips(String username) {
+        List<Trip> trips = tripRepository.findByUserUsernameWithPlaces(username);
+        
+        return trips.stream()
+            .map(trip -> {
+                TripResponseDTO dto = new TripResponseDTO(trip);
+                
+                // Calculate hasChatHistory properly
+                if (trip.getConversationId() != null) {
+                    boolean hasHistory = !chatHistoryRepository
+                        .findByConversationId(trip.getConversationId())
+                        .isEmpty();
+                    dto.setHasChatHistory(hasHistory);
+                }
+                
+                return dto;
+            })
+            .collect(Collectors.toList());
     }
 
-    public Trip getUserTrip(Long tripId, String username) {
-        Trip trip = tripRepository.findById(tripId)
-                .orElseThrow(() -> new RuntimeException("Trip not found"));
+//    public Trip getUserTrip(Long tripId, String username) {
+//        Trip trip = tripRepository.findById(tripId)
+//                .orElseThrow(() -> new RuntimeException("Trip not found"));
+//        
+//        if (!trip.getUser().getUsername().equals(username)) {
+//            throw new RuntimeException("Access denied");
+//        }
+//        
+//        return trip;
+//    }
+//
+//    public List<Trip> getAllTrips() {
+//        return tripRepository.findAll();
+//    }
+    
+    public TripResponseDTO getUserTrip(Long tripId, String username) {
+        Trip trip = tripRepository.findByIdWithPlaces(tripId);
+        
+        if (trip == null) {
+            throw new RuntimeException("Trip not found");
+        }
         
         if (!trip.getUser().getUsername().equals(username)) {
             throw new RuntimeException("Access denied");
         }
         
-        return trip;
+        TripResponseDTO dto = new TripResponseDTO(trip);
+        
+        // Calculate hasChatHistory
+        if (trip.getConversationId() != null) {
+            boolean hasHistory = !chatHistoryRepository
+                .findByConversationId(trip.getConversationId())
+                .isEmpty();
+            dto.setHasChatHistory(hasHistory);
+        }
+        
+        return dto;
     }
 
     public List<Trip> getAllTrips() {
@@ -191,7 +261,7 @@ public class TripService {
         return String.format("""
             Plan a trip from %s to %s:
             - Passengers: %d
-            - Budget: $%.2f
+            - Budget:  ₹%.2f
             - Comfort Level: %s
             - Source Weather: %s (%.1f°C)
             - Destination Weather: %s (%.1f°C)
@@ -211,7 +281,7 @@ public class TripService {
             Recommend specific places to visit in %s for:
             - Interests: %s
             - Duration: %d days
-            - Budget: $%.2f
+            - Budget:  ₹%.2f
             - Travelers: %d passengers
             Provide specific place names, daily itinerary, and cost estimates.
             """,
@@ -221,5 +291,6 @@ public class TripService {
             request.getBudget(),
             request.getPassengers());
     }
+    
     
 }

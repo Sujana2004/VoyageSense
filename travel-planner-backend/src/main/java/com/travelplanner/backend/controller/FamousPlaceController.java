@@ -6,6 +6,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -19,6 +20,7 @@ import com.travelplanner.backend.service.PlaceRecommendationService;
 
 @RestController
 @RequestMapping("/api/places")
+@CrossOrigin(originPatterns = "*", maxAge = 3600)
 public class FamousPlaceController {
     
 	private final FamousPlaceService famousPlaceService;

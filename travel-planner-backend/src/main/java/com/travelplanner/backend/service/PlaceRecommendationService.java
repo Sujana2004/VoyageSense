@@ -1,35 +1,46 @@
 package com.travelplanner.backend.service;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.ai.chat.messages.SystemMessage;
 import org.springframework.ai.chat.messages.UserMessage;
 import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.ai.chat.prompt.Prompt;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.travelplanner.backend.Entities.FamousPlace;
 import com.travelplanner.backend.dto.PlaceRecommendationResponse;
+import com.travelplanner.backend.repository.FamousPlaceRepository;
 
 @Service
 public class PlaceRecommendationService {
+	
+	private static final Logger log = LoggerFactory.getLogger(PlaceRecommendationService.class);
     
     private final FamousPlaceService famousPlaceService;
+    private final FamousPlaceRepository famousPlaceRepository; 
     private final ChatModel chatModel;
     private final ObjectMapper objectMapper;
 
-    public PlaceRecommendationService(FamousPlaceService famousPlaceService, 
-    								ChatModel chatModel, 
+    public PlaceRecommendationService(FamousPlaceService famousPlaceService,
+                                     FamousPlaceRepository famousPlaceRepository, 
+                                     ChatModel chatModel, 
                                      ObjectMapper objectMapper) {
         this.famousPlaceService = famousPlaceService;
+        this.famousPlaceRepository = famousPlaceRepository; 
         this.chatModel = chatModel;
         this.objectMapper = objectMapper;
     }
 
+    @Transactional  
     public PlaceRecommendationResponse getAIRecommendedPlaces(
             String destinationCity, 
             List<String> userInterests, 
@@ -39,173 +50,318 @@ public class PlaceRecommendationService {
         
         List<FamousPlace> cityPlaces = famousPlaceService.getPlacesByCity(destinationCity);
         
-        if (cityPlaces.isEmpty()) {
-            return getFallbackRecommendation(destinationCity);
-        }
-
-        String placesContext = buildPlacesContext(cityPlaces);
+        // Build context from existing places if any
+        String placesContext = cityPlaces.isEmpty() ? 
+            "No places in database yet. Suggest popular attractions." :
+            buildPlacesContext(cityPlaces);
         
         String promptText = """
-            You are an expert travel guide. Recommend places to visit based on:
-            Destination: %s
-            User Interests: %s
-            Trip Duration: %d days
-            Budget: $%.2f
-            Travel Companions: %s
+            [TRAVEL GUIDE FOR %s]
+            INTERESTS: %s | DURATION: %d days | BUDGET: ₹%.2f | COMPANIONS: %s
             
-            Available places in the city:
-            %s
+            CONTEXT: %s
             
-            Provide recommendations in this exact JSON format:
+            RETURN ONLY VALID JSON (no other text):
             {
-              "recommendedPlaces": ["Place Name 1", "Place Name 2", ...],
-              "dailyItinerary": [
-                {"day": 1, "places": ["Place A", "Place B"], "description": "Day 1 plan"},
-                {"day": 2, "places": ["Place C", "Place D"], "description": "Day 2 plan"}
+              "recommendedPlaces": [
+                {
+                  "name": "Specific Place Name",
+                  "description": "Brief practical description",
+                  "category": "Historical/Nature/Beach/Shopping/Food/Nightlife/Relaxation/Adventure/Religious",
+                  "estimatedCost": 100.00,
+                  "recommendedDuration": 2
+                }
               ],
-              "totalCostEstimate": 150.00,
-              "reasoning": "Why these places were chosen based on interests and constraints"
+              "dailyItinerary": [
+                {
+                  "day": 1,
+                  "places": ["Place A", "Place B"],
+                  "description": "Practical day plan"
+                }
+              ],
+              "totalCostEstimate": 500.00,
+              "reasoning": "Concise matching explanation"
             }
-            """.formatted(destinationCity, userInterests, tripDuration, budget, travelCompanions, placesContext);
+            """.formatted(destinationCity, 
+                         userInterests != null ? String.join(", ", userInterests): "general sightseeing", 
+                         tripDuration, 
+                         budget, 
+                         travelCompanions, 
+                         placesContext);
 
         try {
-        	// ✅ Updated to use ChatModel instead of ChatClient
-            SystemMessage systemMessage = new SystemMessage("You are a helpful travel planning assistant. Provide practical, budget-aware travel recommendations in valid JSON format.");
+        	// MISTRAL-OPTIMIZED SYSTEM PROMPT
+            SystemMessage systemMessage = new SystemMessage("""
+                You are a practical travel expert for Indian destinations.
+                CRITICAL: Return ONLY valid JSON, no other text.
+                - Suggest realistic, popular Indian places
+                - Use practical costs in Indian Rupees
+                - Keep descriptions brief and useful (max 20 words)
+                - recommendedDuration: based on distance
+                - estimatedCost: realistic Indian entry fees
+                - Be specific with place names
+                """);
             UserMessage userMessage = new UserMessage(promptText);
             Prompt prompt = new Prompt(List.of(systemMessage, userMessage));
             
             String aiResponse = chatModel.call(prompt).getResult().getOutput().getText();
+            log.info("Place AI Response: {}", aiResponse);
             
-            return parseAIResponse(aiResponse, cityPlaces);
+            //  Parse and save places dynamically
+            return parseAndSavePlaces(aiResponse, destinationCity);
             
         } catch (Exception e) {
+        	log.error("Place recommendation failed: {}", e.getMessage());
             return getFallbackRecommendation(destinationCity);
+        }
+    }
+
+    // Parse AI response and create FamousPlace entries
+    @Transactional
+    private PlaceRecommendationResponse parseAndSavePlaces(String aiResponse, String city) {
+        PlaceRecommendationResponse response = new PlaceRecommendationResponse();
+        
+        try {
+            // Clean AI response (remove markdown code blocks if present)
+        	String cleanJson = extractJsonFromResponse(aiResponse);
+            log.info("Cleaned place JSON: {}", cleanJson);
+            
+            if (cleanJson.equals("{}")) {
+                log.warn("No JSON found in AI response, using text parsing");
+                return parseAIResponseFromText(aiResponse, city);
+            }
+            
+            Map<String, Object> aiData = objectMapper.readValue(
+                cleanJson, 
+                new TypeReference<Map<String, Object>>() {}
+            );
+            
+            // Extract and create FamousPlace entities
+            // Process recommendedPlaces
+            if (aiData.containsKey("recommendedPlaces") && aiData.get("recommendedPlaces") instanceof List) {
+                List<?> recommendedPlacesData = (List<?>) aiData.get("recommendedPlaces");
+                List<FamousPlace> savedPlaces = recommendedPlacesData.stream()
+                    .map(placeData -> {
+                        if (placeData instanceof Map) {
+                            Map<?, ?> placeMap = (Map<?, ?>) placeData;
+                            return createOrUpdatePlace(placeMap, city);
+                        }
+                        return null;
+                    })
+                    .filter(place -> place != null)
+                    .collect(Collectors.toList());
+                
+                response.setRecommendedPlaces(savedPlaces);
+            }
+            
+            // Extract daily itinerary
+            if (aiData.containsKey("dailyItinerary")) {
+                List<?> dailyItineraryData = (List<?>) aiData.get("dailyItinerary");
+                List<PlaceRecommendationResponse.DailyItinerary> dailyItinerary = dailyItineraryData.stream()
+                    .map(dayObj -> {
+                        if (dayObj instanceof Map) {
+                            Map<?, ?> dayData = (Map<?, ?>) dayObj;
+                            PlaceRecommendationResponse.DailyItinerary itinerary = 
+                                new PlaceRecommendationResponse.DailyItinerary();
+                            
+                         // Safe extraction with defaults
+                            itinerary.setDay(extractInt(dayData.get("day"), 1));
+                            itinerary.setPlaces(extractStringList(dayData.get("places")));
+                            itinerary.setDescription(extractString(dayData.get("description"), "Daily itinerary"));
+                            
+                            return itinerary;
+                        }
+                        return null;
+                    })
+                    .filter(itinerary -> itinerary != null)
+                    .collect(Collectors.toList());
+                response.setDailyItinerary(dailyItinerary);
+            }
+            
+         // Extract other fields with safe defaults
+            response.setTotalCostEstimate(extractDouble(aiData.get("totalCostEstimate"), budgetEstimate(response.getRecommendedPlaces())));
+            response.setReasoning(extractString(aiData.get("reasoning"), "AI-curated itinerary for " + city));
+            
+        } catch (Exception e) {
+            e.printStackTrace();
+            // Fallback to text parsing
+            return parseAIResponseFromText(aiResponse, city);
+        }
+        
+        return response;
+    }
+    
+ // ROBUST JSON EXTRACTION
+    private String extractJsonFromResponse(String response) {
+        if (response == null || response.trim().isEmpty()) {
+            return "{}";
+        }
+        
+        // Remove markdown code blocks
+        String cleaned = response.replaceAll("(?i)```json", "")
+                               .replaceAll("```", "")
+                               .trim();
+        
+        // Extract JSON between first { and last }
+        int start = cleaned.indexOf("{");
+        int end = cleaned.lastIndexOf("}") + 1;
+        
+        if (start >= 0 && end > start && end <= cleaned.length()) {
+            String json = cleaned.substring(start, end);
+            // Basic validation
+            if (json.startsWith("{") && json.endsWith("}")) {
+                return json;
+            }
+        }
+        
+        log.warn("No valid JSON found in place response");
+        return "{}";
+    }
+    
+ // HELPER METHODS FOR SAFE DATA EXTRACTION
+    private int extractInt(Object value, int defaultValue) {
+        if (value instanceof Number) return ((Number) value).intValue();
+        if (value instanceof String) {
+            try { return Integer.parseInt((String) value); } 
+            catch (NumberFormatException e) { return defaultValue; }
+        }
+        return defaultValue;
+    }
+    
+    private double extractDouble(Object value, double defaultValue) {
+        if (value instanceof Number) return ((Number) value).doubleValue();
+        if (value instanceof String) {
+            try { return Double.parseDouble((String) value); } 
+            catch (NumberFormatException e) { return defaultValue; }
+        }
+        return defaultValue;
+    }
+    
+    private String extractString(Object value, String defaultValue) {
+        return value != null ? value.toString() : defaultValue;
+    }
+    
+    private List<String> extractStringList(Object value) {
+        if (value instanceof List) {
+            return ((List<?>) value).stream()
+                .map(Object::toString)
+                .collect(Collectors.toList());
+        }
+        return new ArrayList<>();
+    }
+    
+    private double budgetEstimate(List<FamousPlace> places) {
+        if (places == null || places.isEmpty()) return 1000.0;
+        return places.stream().mapToDouble(p -> p.getEntryFee() != null ? p.getEntryFee() : 0.0).sum();
+    }
+
+    // Create or update FamousPlace from AI data
+    @Transactional
+    private FamousPlace createOrUpdatePlace(Map<?, ?> placeData, String city) {
+        try {
+            String placeName = placeData.get("name").toString();
+            
+            // Check if place already exists
+            List<FamousPlace> existingPlaces = famousPlaceRepository.findByCity(city);
+            FamousPlace existingPlace = existingPlaces.stream()
+                .filter(p -> p.getName().equalsIgnoreCase(placeName))
+                .findFirst()
+                .orElse(null);
+            
+            FamousPlace place = existingPlace != null ? existingPlace : new FamousPlace();
+            
+            place.setName(placeName);
+            place.setCity(city);
+            place.setCountry("India"); // Default, you can make this dynamic
+            
+            if (placeData.containsKey("description")) {
+                place.setDescription(placeData.get("description").toString());
+            }
+            
+            if (placeData.containsKey("category")) {
+                place.setCategory(placeData.get("category").toString());
+            }
+            
+            if (placeData.containsKey("estimatedCost")) {
+                Object costObj = placeData.get("estimatedCost");
+                if (costObj instanceof Number) {
+                    place.setEntryFee(((Number) costObj).doubleValue());
+                }
+            }
+            
+            if (placeData.containsKey("recommendedDuration")) {
+                Object durationObj = placeData.get("recommendedDuration");
+                if (durationObj instanceof Number) {
+                    place.setRecommendedDuration(((Number) durationObj).intValue());
+                }
+            }
+            
+            // Set default rating if not exists
+            if (place.getRating() == null) {
+                place.setRating(4.0);
+            }
+            
+            // Set default coordinates (you can enhance this with geocoding)
+            if (place.getLatitude() == null) {
+                place.setLatitude(0.0);
+                place.setLongitude(0.0);
+            }
+            
+            return famousPlaceRepository.save(place);
+            
+        } catch (Exception e) {
+            e.printStackTrace();
+            return null;
         }
     }
 
     private String buildPlacesContext(List<FamousPlace> places) {
         return places.stream()
                 .map(place -> String.format(
-                    "- %s (%s): $%.2f entry, %d hours, Rating: %.1f/5 - %s",
-                    place.getName(), place.getCategory(), place.getEntryFee(),
-                    place.getRecommendedDuration(), place.getRating(), place.getDescription()
+                    "- %s (%s): $%.2f entry, %d hours, Rating: %.1f/5",
+                    place.getName(), 
+                    place.getCategory(), 
+                    place.getEntryFee(),
+                    place.getRecommendedDuration(), 
+                    place.getRating()
                 ))
                 .collect(Collectors.joining("\n"));
     }
 
-    @SuppressWarnings("unchecked")
-    private PlaceRecommendationResponse parseAIResponse(String aiResponse, List<FamousPlace> allPlaces) {
+    private PlaceRecommendationResponse parseAIResponseFromText(String aiResponse, String city) {
+        // Fallback: Try to extract place names from text
         PlaceRecommendationResponse response = new PlaceRecommendationResponse();
         
-        try {
-            // ✅ TYPE SAFE: Use TypeReference for proper generic type preservation
-            Map<String, Object> aiData = objectMapper.readValue(
-                aiResponse, 
-                new TypeReference<Map<String, Object>>() {}
-            );
-            
-            // Extract recommended places from JSON - TYPE SAFE
-            if (aiData.containsKey("recommendedPlaces")) {
-                Object recommendedPlacesObj = aiData.get("recommendedPlaces");
-                if (recommendedPlacesObj instanceof List) {
-                    List<?> recommendedPlaceNames = (List<?>) recommendedPlacesObj;
-                    List<FamousPlace> recommended = allPlaces.stream()
-                            .filter(place -> recommendedPlaceNames.stream()
-                                    .anyMatch(name -> name.toString().toLowerCase()
-                                            .contains(place.getName().toLowerCase())))
-                            .collect(Collectors.toList());
-                    response.setRecommendedPlaces(recommended);
-                }
+        // Simple text parsing - look for common place names
+        String[] commonPlaces = {"Beach", "Fort", "Temple", "Market", "Falls", "Church","Market","Food", "Museum"};
+        
+        for (String keyword : commonPlaces) {
+            if (aiResponse.toLowerCase().contains(keyword.toLowerCase())) {
+                FamousPlace place = new FamousPlace();
+                place.setName(keyword + " in " + city);
+                place.setDescription("Extracted from AI recommendation");
+                place.setCity(city);
+                place.setCountry("India");
+                place.setCategory("General");
+                place.setRating(4.0);
+                place.setEntryFee(0.0);
+                place.setRecommendedDuration(2);
+                place.setLatitude(0.0);
+                place.setLongitude(0.0);
+                
+                FamousPlace saved = famousPlaceRepository.save(place);
+                response.setRecommendedPlaces(List.of(saved));
+                break;
             }
-            
-            // Extract daily itinerary from JSON - TYPE SAFE
-            if (aiData.containsKey("dailyItinerary")) {
-                Object dailyItineraryObj = aiData.get("dailyItinerary");
-                if (dailyItineraryObj instanceof List) {
-                    List<?> dailyItineraryData = (List<?>) dailyItineraryObj;
-                    List<PlaceRecommendationResponse.DailyItinerary> dailyItinerary = dailyItineraryData.stream()
-                            .map(dayObj -> {
-                                if (dayObj instanceof Map) {
-                                    Map<?, ?> dayData = (Map<?, ?>) dayObj;
-                                    PlaceRecommendationResponse.DailyItinerary itinerary = new PlaceRecommendationResponse.DailyItinerary();
-                                    
-                                    // Safe day extraction
-                                    Object dayObjValue = dayData.get("day");
-                                    if (dayObjValue instanceof Number) {
-                                        itinerary.setDay(((Number) dayObjValue).intValue());
-                                    }
-                                    
-                                    // Safe places extraction
-                                    Object placesObj = dayData.get("places");
-                                    if (placesObj instanceof List) {
-                                        List<String> places = ((List<?>) placesObj).stream()
-                                                .map(Object::toString)
-                                                .collect(Collectors.toList());
-                                        itinerary.setPlaces(places);
-                                    }
-                                    
-                                    // Safe description extraction
-                                    Object descObj = dayData.get("description");
-                                    if (descObj instanceof String) {
-                                        itinerary.setDescription((String) descObj);
-                                    }
-                                    
-                                    return itinerary;
-                                }
-                                return null;
-                            })
-                            .filter(itinerary -> itinerary != null)
-                            .collect(Collectors.toList());
-                    response.setDailyItinerary(dailyItinerary);
-                }
-            }
-            
-            // Extract other fields - TYPE SAFE
-            if (aiData.containsKey("totalCostEstimate")) {
-                Object costObj = aiData.get("totalCostEstimate");
-                if (costObj instanceof Number) {
-                    response.setTotalCostEstimate(((Number) costObj).doubleValue());
-                }
-            }
-            
-            if (aiData.containsKey("reasoning")) {
-                Object reasoningObj = aiData.get("reasoning");
-                if (reasoningObj instanceof String) {
-                    response.setReasoning((String) reasoningObj);
-                }
-            }
-            
-            // Set default reasoning if none provided
-            if (response.getReasoning() == null) {
-                response.setReasoning("AI-curated itinerary based on your preferences");
-            }
-            
-        } catch (Exception e) {
-            // Fallback: Simple text parsing if JSON parsing fails
-            return parseAIResponseFromText(aiResponse, allPlaces);
         }
         
-        return response;
-    }
-
-    private PlaceRecommendationResponse parseAIResponseFromText(String aiResponse, List<FamousPlace> allPlaces) {
-        // Fallback parsing: Extract place names from text
-        PlaceRecommendationResponse response = new PlaceRecommendationResponse();
-        
-        List<FamousPlace> recommended = allPlaces.stream()
-                .filter(place -> aiResponse.toLowerCase().contains(place.getName().toLowerCase()))
-                .collect(Collectors.toList());
-        
-        response.setRecommendedPlaces(recommended);
-        response.setReasoning("AI-curated based on your preferences and constraints (text analysis)");
-        
+        response.setReasoning("AI-curated based on your preferences (text analysis)");
         return response;
     }
 
     private PlaceRecommendationResponse getFallbackRecommendation(String city) {
-        // Fallback: return top-rated places
-        List<FamousPlace> topRated = famousPlaceService.getTopRatedPlacesInCity(city);
         PlaceRecommendationResponse response = new PlaceRecommendationResponse();
+        List<FamousPlace> topRated = famousPlaceService.getTopRatedPlacesInCity(city);
         response.setRecommendedPlaces(topRated);
         response.setReasoning("Top-rated places in " + city);
         return response;

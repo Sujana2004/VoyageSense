@@ -6,6 +6,7 @@ import java.util.stream.Collectors;
 
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -22,6 +23,7 @@ import jakarta.validation.Valid;
 
 @RestController
 @RequestMapping("/api/chat")
+@CrossOrigin(originPatterns = "*", maxAge = 3600)
 public class ChatController {
     
     private final ChatService chatService;

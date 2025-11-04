@@ -3,11 +3,11 @@ package com.travelplanner.backend.controller;
 
 import java.util.List;
 import java.util.Map;
-import java.util.stream.Collectors;
 
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.userdetails.User;
+import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -22,6 +22,7 @@ import com.travelplanner.backend.service.TripService;
 
 @RestController
 @RequestMapping("/api/trips")
+@CrossOrigin(originPatterns = "*", maxAge = 3600)
 public class TripController {
     
     private final TripService tripService;
@@ -44,21 +45,21 @@ public class TripController {
 
     @GetMapping
     public ResponseEntity<List<TripResponseDTO>> getUserTrips(@AuthenticationPrincipal User user) {
-        List<Trip> trips = tripService.getUserTrips(user.getUsername());
-        List<TripResponseDTO> responseDTOs = trips.stream()
-                .map(TripResponseDTO::new)
-                .collect(Collectors.toList());
-        return ResponseEntity.ok(responseDTOs);
+//        List<Trip> trips = tripService.getUserTrips(user.getUsername());
+//        List<TripResponseDTO> responseDTOs = trips.stream()
+//                .map(TripResponseDTO::new)
+//                .collect(Collectors.toList());
+//        return ResponseEntity.ok(responseDTOs);
+    	List<TripResponseDTO> trips = tripService.getUserTrips(user.getUsername());
+        return ResponseEntity.ok(trips);
     }
 
     @GetMapping("/{id}")
     public ResponseEntity<TripResponseDTO> getTrip(@PathVariable Long id, 
-                                           @AuthenticationPrincipal User user) {
-        Trip trip = tripService.getUserTrip(id, user.getUsername());
-        TripResponseDTO responseDTO = new TripResponseDTO(trip);
-        return ResponseEntity.ok(responseDTO);
+                                       @AuthenticationPrincipal User user) {
+        TripResponseDTO trip = tripService.getUserTrip(id, user.getUsername());
+        return ResponseEntity.ok(trip);
     }
-
 //    @PostMapping
 //    public ResponseEntity<?> createTrip(@RequestBody TripRequest request, 
 //                                       @AuthenticationPrincipal User user) {

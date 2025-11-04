@@ -8,6 +8,7 @@ import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.userdetails.UserDetails;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 
 import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
@@ -129,9 +130,11 @@ public class User implements UserDetails {
 	}
 
 	@OneToMany(mappedBy = "user", cascade = CascadeType.ALL)
+	@JsonIgnoreProperties("user")
     private List<Trip> trips;
 
     @OneToMany(mappedBy = "user", cascade = CascadeType.ALL)
+    @JsonIgnoreProperties("user")
     private List<ChatHistory> chatHistories;
 
     @PrePersist
@@ -147,7 +150,7 @@ public class User implements UserDetails {
 
     @Override
     public Collection<? extends GrantedAuthority> getAuthorities() {
-        return List.of(new SimpleGrantedAuthority(role.name()));
+        return List.of(new SimpleGrantedAuthority("ROLE_"+role.name()));
     }
 
     @Override
@@ -171,7 +174,7 @@ public class User implements UserDetails {
     }
 
     public enum Role {
-        ROLE_USER, ROLE_ADMIN
+        USER, ADMIN
     }
 
 }

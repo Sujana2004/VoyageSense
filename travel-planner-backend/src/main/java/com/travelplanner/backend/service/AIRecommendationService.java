@@ -3,6 +3,8 @@ package com.travelplanner.backend.service;
 import java.util.List;
 import java.util.Map;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.ai.chat.messages.SystemMessage;
 import org.springframework.ai.chat.messages.UserMessage;
 import org.springframework.ai.chat.model.ChatModel;
@@ -13,6 +15,8 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 
 @Service
 public class AIRecommendationService {
+	
+	private static final Logger log = LoggerFactory.getLogger(AIRecommendationService.class);
     
     private final ChatModel chatModel;
     private final ObjectMapper objectMapper;
@@ -30,32 +34,31 @@ public class AIRecommendationService {
         
         try {
             String promptText = """
-                Analyze this travel plan and provide specific recommendations:
+               [TRAVEL ANALYSIS]
+                FROM: %s TO: %s
+                PASSENGERS: %d | BUDGET: ₹%.2f | COMFORT: %s
+                WEATHER: %s (source) → %s (destination)
                 
-                Travel Details:
-                - From: {source} to {destination}
-                - Passengers: {passengers}
-                - Budget: ${budget}
-                - Comfort Level: {comfortLevel}
-                - Source Weather: {sourceWeather}
-                - Destination Weather: {destWeather}
-                
-                Provide response in this exact JSON format:
+                RETURN ONLY VALID JSON (no other text):
                 {
                   "recommendedMode": "car/train/bus/flight",
                   "distanceEstimate": 123.45,
                   "confidenceScore": 0.85,
-                  "reasoning": "Brief explanation based on budget, weather, and comfort"
+                  "reasoning": "Brief practical explanation"
                 }
-                """.replace("{source}", source)
-                  .replace("{destination}", destination)
-                  .replace("{passengers}", String.valueOf(passengers))
-                  .replace("{budget}", String.valueOf(budget))
-                  .replace("{comfortLevel}", comfortLevel)
-                  .replace("{sourceWeather}", sourceWeather)
-                  .replace("{destWeather}", destWeather);
+                """.formatted(source, destination, passengers, budget,
+                 comfortLevel, sourceWeather, destWeather);
             
-            SystemMessage systemMessage = new SystemMessage("You are a travel planning expert. Provide practical travel mode recommendations based on budget, weather, and comfort preferences.");
+            SystemMessage systemMessage = new SystemMessage("""
+                    You are a practical travel planner for Indian routes. 
+                    CRITICAL: Return ONLY valid JSON, no explanations.
+                    - Use realistic distances for Indian travel
+                    - Consider budget and comfort level seriously  
+                    - Be concise in reasoning (max 2 sentences)
+                    - recommendedMode: car/train/bus/flight only
+                    - distanceEstimate: realistic km between Indian cities
+                    - confidenceScore: 0.0 to 1.0
+                    """);
             UserMessage userMessage = new UserMessage(promptText);
             Prompt prompt = new Prompt(List.of(systemMessage, userMessage));
             
@@ -71,12 +74,42 @@ public class AIRecommendationService {
 
     private Map<String, Object> parseAIResponse(String response) {
         try {
-            // Try to parse as JSON first
-            return objectMapper.readValue(response, Map.class);
+            // Try to parse as JSON
+        	String cleanJson = extractJsonFromResponse(response);
+            log.info("Cleaned JSON: {}", cleanJson);
+            return objectMapper.readValue(cleanJson, Map.class);
         } catch (Exception e) {
             // If JSON parsing fails, extract information from text
+        	log.warn("JSON parsing failed, extracting from text: {}", e.getMessage());
             return extractFromText(response);
         }
+    }
+    
+ // ROBUST JSON EXTRACTION FOR MISTRAL
+    private String extractJsonFromResponse(String response) {
+        if (response == null || response.trim().isEmpty()) {
+            return "{}";
+        }
+        
+        // Remove markdown code blocks
+        String cleaned = response.replaceAll("(?i)```json", "")
+                               .replaceAll("```", "")
+                               .trim();
+        
+        // Extract JSON between first { and last }
+        int start = cleaned.indexOf("{");
+        int end = cleaned.lastIndexOf("}") + 1;
+        
+        if (start >= 0 && end > start && end <= cleaned.length()) {
+            String json = cleaned.substring(start, end);
+            // Basic validation
+            if (json.startsWith("{") && json.endsWith("}")) {
+                return json;
+            }
+        }
+        
+        log.warn("No valid JSON found in response");
+        return "{}";
     }
 
     private Map<String, Object> extractFromText(String response) {
@@ -86,10 +119,28 @@ public class AIRecommendationService {
         String reasoning = "Based on your travel preferences";
 
         // Simple text analysis
-        if (response.toLowerCase().contains("train")) recommendedMode = "train";
-        if (response.toLowerCase().contains("bus")) recommendedMode = "bus";
-        if (response.toLowerCase().contains("flight") || response.toLowerCase().contains("plane")) recommendedMode = "flight";
-
+        String lowerResponse = response.toLowerCase();
+        if (lowerResponse.contains("train")) recommendedMode = "train";
+        if (lowerResponse.contains("bus")) recommendedMode = "bus";
+        if (lowerResponse.contains("flight") || lowerResponse.contains("plane")) recommendedMode = "flight";
+        if (lowerResponse.contains("car") || lowerResponse.contains("drive")) recommendedMode = "car";
+        
+     // Extract numbers from text for distance
+        if (response.matches(".*\\d+\\s*km.*")) {
+            String[] parts = response.split("\\s*km\\s*");
+            for (String part : parts) {
+                if (part.matches(".*\\d+.*")) {
+                    try {
+                        String num = part.replaceAll(".*?(\\d+).*", "$1");
+                        distanceEstimate = Double.parseDouble(num);
+                        break;
+                    } catch (NumberFormatException e) {
+                        // Keep default
+                    }
+                }
+            }
+        }
+        
         return Map.of(
             "recommendedMode", recommendedMode,
             "distanceEstimate", distanceEstimate,
@@ -105,12 +156,12 @@ public class AIRecommendationService {
         double confidenceScore;
         String reasoning;
 
-        if (budget > 1000) {
+        if (budget > 5000) {
             recommendedMode = "flight";
             distanceEstimate = 800.0;
             confidenceScore = 0.9;
             reasoning = "Budget allows for comfortable air travel";
-        } else if (budget > 300) {
+        } else if (budget > 1500) {
             recommendedMode = "train";
             distanceEstimate = 500.0;
             confidenceScore = 0.8;

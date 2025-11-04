@@ -5,12 +5,14 @@ import java.util.Map;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.travelplanner.backend.Entities.User;
+import com.travelplanner.backend.dto.AdminRegisterRequest;
 import com.travelplanner.backend.dto.LoginRequest;
 import com.travelplanner.backend.dto.RegisterRequest;
 import com.travelplanner.backend.security.JwtService;
@@ -20,6 +22,7 @@ import jakarta.validation.Valid;
 
 @RestController
 @RequestMapping("/api/auth")
+@CrossOrigin(originPatterns = "*", maxAge = 3600)
 public class AuthController {
     
     private final UserService userService;
@@ -39,6 +42,21 @@ public class AuthController {
             User user = userService.registerUser(request);
             String token = jwtService.generateToken(user);
             return ResponseEntity.ok(Map.of("token", token, "user", user));
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
+        }
+    }
+    
+    @PostMapping("/register-admin")
+    public ResponseEntity<?> registerAdmin(@Valid @RequestBody AdminRegisterRequest request) {
+        try {
+            User admin = userService.registerAdminWithCode(request);
+            String token = jwtService.generateToken(admin);
+            return ResponseEntity.ok(Map.of(
+                "message", "Admin registered successfully",
+                "token", token,
+                "user", admin
+            ));
         } catch (Exception e) {
             return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
         }

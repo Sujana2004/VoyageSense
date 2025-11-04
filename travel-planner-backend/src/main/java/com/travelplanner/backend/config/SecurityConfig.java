@@ -2,6 +2,7 @@ package com.travelplanner.backend.config;
 
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpMethod;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.AuthenticationProvider;
 import org.springframework.security.authentication.dao.DaoAuthenticationProvider;
@@ -42,10 +43,11 @@ public class SecurityConfig {
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http
             .csrf(csrf -> csrf.disable())
+            .cors(cors -> {})
             .authorizeHttpRequests(auth -> auth
+            	.requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                 .requestMatchers("/api/auth/**", "/swagger-ui/**", "/v3/api-docs/**", "/api-docs/**").permitAll()
-                .requestMatchers("/api/admin/**").hasRole("ADMIN")
-//                .requestMatchers("/api/**").permitAll()
+                .requestMatchers("/api/admin/**").hasRole("ADMIN") //or hasAuthority("ROLE_ADMIN")
                 .anyRequest().authenticated()
             )
             .sessionManagement(session -> session

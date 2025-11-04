@@ -3,6 +3,7 @@ package com.travelplanner.backend.service;
 import java.util.List;
 import java.util.Optional;
 
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
@@ -10,6 +11,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
 import com.travelplanner.backend.Entities.User;
+import com.travelplanner.backend.dto.AdminRegisterRequest;
 import com.travelplanner.backend.dto.RegisterRequest;
 import com.travelplanner.backend.repository.UserRepository;
 
@@ -34,7 +36,7 @@ public class UserService implements UserDetailsService {
         return org.springframework.security.core.userdetails.User.builder()
                 .username(user.getUsername())
                 .password(user.getPassword())
-                .authorities(user.getRole().name()) // or .roles(user.getRole().name().replace("ROLE_", ""))
+                .roles(user.getRole().name()) // or .authorities("ROLE_"+user.getRole().name())
                 .build();
     }
 
@@ -50,7 +52,7 @@ public class UserService implements UserDetailsService {
         user.setUsername(request.getUsername());
         user.setEmail(request.getEmail());
         user.setPassword(passwordEncoder.encode(request.getPassword()));
-        user.setRole(User.Role.ROLE_USER);
+        user.setRole(User.Role.USER);
 
         return userRepository.save(user);
     }
@@ -66,5 +68,30 @@ public class UserService implements UserDetailsService {
 
     public List<User> findAll() {
         return userRepository.findAll();
+    }
+    
+    @Value("${app.admin.secret-code}")
+    private String adminSecretCode;
+
+    public User registerAdminWithCode(AdminRegisterRequest request) {
+        // Verify secret code
+        if (!adminSecretCode.equals(request.getAdminSecretCode())) {
+            throw new RuntimeException("Invalid admin secret code");
+        }
+        
+        if (userRepository.existsByUsername(request.getUsername())) {
+            throw new RuntimeException("Username already exists");
+        }
+        if (userRepository.existsByEmail(request.getEmail())) {
+            throw new RuntimeException("Email already exists");
+        }
+
+        User admin = new User();
+        admin.setUsername(request.getUsername());
+        admin.setEmail(request.getEmail());
+        admin.setPassword(passwordEncoder.encode(request.getPassword()));
+        admin.setRole(User.Role.ADMIN);
+        
+        return userRepository.save(admin);
     }
 }

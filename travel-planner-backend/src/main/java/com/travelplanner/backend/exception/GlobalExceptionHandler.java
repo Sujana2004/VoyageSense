@@ -13,7 +13,7 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 @RestControllerAdvice
 public class GlobalExceptionHandler {
     
-	// ✅ Handle validation errors (@Valid, @NotBlank, etc.)
+	// Handle validation errors (@Valid, @NotBlank, etc.)
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public ResponseEntity<Map<String, String>> handleValidationExceptions(
             MethodArgumentNotValidException ex) {
@@ -38,7 +38,7 @@ public class GlobalExceptionHandler {
             .body(errors);
     }
     
-    // ✅ Handle general RuntimeExceptions
+    // Handle general RuntimeExceptions
     @ExceptionHandler(RuntimeException.class)
     public ResponseEntity<Map<String, String>> handleRuntimeException(RuntimeException ex) {
         return ResponseEntity
@@ -46,7 +46,7 @@ public class GlobalExceptionHandler {
             .body(Map.of("error", ex.getMessage()));
     }
     
-    // ✅ Handle all other exceptions
+    // Handle all other exceptions
     @ExceptionHandler(Exception.class)
     public ResponseEntity<Map<String, String>> handleException(Exception ex) {
         return ResponseEntity

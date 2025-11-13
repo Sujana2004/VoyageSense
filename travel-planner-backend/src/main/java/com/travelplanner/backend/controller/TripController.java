@@ -45,11 +45,6 @@ public class TripController {
 
     @GetMapping
     public ResponseEntity<List<TripResponseDTO>> getUserTrips(@AuthenticationPrincipal User user) {
-//        List<Trip> trips = tripService.getUserTrips(user.getUsername());
-//        List<TripResponseDTO> responseDTOs = trips.stream()
-//                .map(TripResponseDTO::new)
-//                .collect(Collectors.toList());
-//        return ResponseEntity.ok(responseDTOs);
     	List<TripResponseDTO> trips = tripService.getUserTrips(user.getUsername());
         return ResponseEntity.ok(trips);
     }
@@ -60,27 +55,4 @@ public class TripController {
         TripResponseDTO trip = tripService.getUserTrip(id, user.getUsername());
         return ResponseEntity.ok(trip);
     }
-//    @PostMapping
-//    public ResponseEntity<?> createTrip(@RequestBody TripRequest request, 
-//                                       @AuthenticationPrincipal User user) {
-//        try {
-//            Trip trip = tripService.createTrip(request, user.getUsername());
-//            return ResponseEntity.ok(trip);
-//        } catch (Exception e) {
-//            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
-//        }
-//    }
-
-//    @GetMapping
-//    public ResponseEntity<List<Trip>> getUserTrips(@AuthenticationPrincipal User user) {
-//        List<Trip> trips = tripService.getUserTrips(user.getUsername());
-//        return ResponseEntity.ok(trips);
-//    }
-//
-//    @GetMapping("/{id}")
-//    public ResponseEntity<Trip> getTrip(@PathVariable Long id, 
-//                                       @AuthenticationPrincipal User user) {
-//        Trip trip = tripService.getUserTrip(id, user.getUsername());
-//        return ResponseEntity.ok(trip);
-//    }
 }

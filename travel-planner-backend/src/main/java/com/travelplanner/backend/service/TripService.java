@@ -8,9 +8,6 @@ import java.util.stream.Collectors;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
-import org.springframework.scheduling.annotation.Async;
-import org.springframework.scheduling.annotation.EnableAsync;
-import com.travelplanner.backend.Entities.ChatHistory;
 
 import com.travelplanner.backend.Entities.Trip;
 import com.travelplanner.backend.Entities.User;
@@ -88,17 +85,7 @@ public class TripService {
             );
             
             String conversationId = "trip_" + System.currentTimeMillis();
-            
-//            // ✅ NEW: Store trip planning in ChatHistory
-//            String tripPlanningMessage = buildTripPlanningMessage(request, sourceWeather, destWeather, recommendations);
-//            
-//            
-//            ChatHistory tripChat = chatService.processMessage(tripPlanningMessage, username, conversationId);
-//            
-//            // ✅ NEW: Store place recommendations in chat history
-//            String placeRecommendationPrompt = buildPlaceRecommendationPrompt(request);
-//            ChatHistory placeChat = chatService.processMessage(placeRecommendationPrompt, username, conversationId);
-            
+                 
             CompletableFuture.runAsync(() -> {
                 try {
                     log.info("Starting async chat history creation for trip {}", conversationId);
@@ -165,7 +152,7 @@ public class TripService {
             
             trip.setRecommendedPlaces(placeRecommendations.getRecommendedPlaces());
             
-            // ✅ ADD THIS: Store conversation ID
+            // Store conversation ID
             trip.setConversationId(conversationId);
             
             Trip savedTrip = tripRepository.save(trip);
@@ -179,7 +166,6 @@ public class TripService {
         }
     }
 
-    // ✅ ADD THIS MISSING METHOD
     private WeatherAnalysis getDefaultWeatherAnalysis() {
         WeatherAnalysis analysis = new WeatherAnalysis();
         analysis.setTemperature(20.0);
@@ -211,21 +197,6 @@ public class TripService {
             })
             .collect(Collectors.toList());
     }
-
-//    public Trip getUserTrip(Long tripId, String username) {
-//        Trip trip = tripRepository.findById(tripId)
-//                .orElseThrow(() -> new RuntimeException("Trip not found"));
-//        
-//        if (!trip.getUser().getUsername().equals(username)) {
-//            throw new RuntimeException("Access denied");
-//        }
-//        
-//        return trip;
-//    }
-//
-//    public List<Trip> getAllTrips() {
-//        return tripRepository.findAll();
-//    }
     
     public TripResponseDTO getUserTrip(Long tripId, String username) {
         Trip trip = tripRepository.findByIdWithPlaces(tripId);
@@ -255,7 +226,7 @@ public class TripService {
         return tripRepository.findAll();
     }
     
- // ✅ ADD THESE HELPER METHODS TO TripService.java
+ // HELPER METHODS TO TripService.java
     private String buildTripPlanningMessage(TripRequest request, WeatherAnalysis sourceWeather, 
                                            WeatherAnalysis destWeather, Map<String, Object> recommendations) {
         return String.format("""

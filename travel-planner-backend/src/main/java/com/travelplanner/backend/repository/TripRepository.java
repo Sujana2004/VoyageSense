@@ -14,14 +14,14 @@ public interface TripRepository extends JpaRepository<Trip, Long> {
     List<Trip> findByUserId(Long userId);
     List<Trip> findByUserUsername(String username);
     
- //  ADD THIS - Eagerly fetch recommendedPlaces
+ //  Eagerly fetch recommendedPlaces
     @Query("SELECT DISTINCT t FROM Trip t " +
             "LEFT JOIN FETCH t.recommendedPlaces " +
             "WHERE t.user.username = :username " +
             "ORDER BY t.createdAt DESC")
      List<Trip> findByUserUsernameWithPlaces(@Param("username") String username);
     
- //  ADD THIS - For single trip
+ // For single trip
     @Query("SELECT t FROM Trip t " +
            "LEFT JOIN FETCH t.recommendedPlaces " +
            "WHERE t.id = :id")

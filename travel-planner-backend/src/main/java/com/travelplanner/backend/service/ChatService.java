@@ -72,7 +72,7 @@ public class ChatService {
             // Create and execute prompt
             Prompt prompt = new Prompt(List.of(systemMessage, userMessage));
             
-            // CORRECTED: Use the new API for Spring AI 1.0.0
+            // Use the API for Spring AI 1.0.0
             ChatResponse response = chatModel.call(prompt);
             
             // Extract content from the response - CORRECTED METHOD

@@ -40,14 +40,14 @@ public class FamousPlaceService {
                 .orElseThrow(() -> new RuntimeException("Place not found"));
     }
     
- // Optional: Add pagination
+ // Add pagination
     
- // ✅ FIXED: Different method name for pagination
+ // Different method name for pagination
     public Page<FamousPlace> getPlacesByCityPaginated(String city, Pageable pageable) {
         return famousPlaceRepository.findByCity(city, pageable);
     }
     
-    // ✅ ADD: Pagination for all places
+    //Pagination for all places
     public Page<FamousPlace> getAllPlacesPaginated(Pageable pageable) {
         return famousPlaceRepository.findAll(pageable);
     }

@@ -73,7 +73,7 @@ public class FamousPlaceController {
         return ResponseEntity.ok(recommendations);
     }
     
- // ✅ NEW PAGINATION ENDPOINTS
+ // PAGINATION ENDPOINTS
     @GetMapping("/city/{city}/paginated")
     public ResponseEntity<Page<FamousPlace>> getPlacesByCityPaginated(
             @PathVariable String city,

@@ -145,7 +145,7 @@ public class AdminController {
     /**
      * Get conversation details (for confirmation before deletion)
      */
-    @PreAuthorize("hasRole('ROLE_ADMIN')")
+    @PreAuthorize("hasRole('ROLE_ADMIN')")  //You also use hasAuthority('ADMIN') as role is automatically taken by spring for this method
     @GetMapping("/conversations/{conversationId}/details")
     public ResponseEntity<?> getConversationDetails(@PathVariable String conversationId) {
         try {

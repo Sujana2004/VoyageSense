@@ -55,22 +55,4 @@ public class ChatController {
         return ResponseEntity.ok(responseDTOs);
     }
 
-//    @PostMapping
-//    public ResponseEntity<?> sendMessage(@Valid @RequestBody ChatRequest request,
-//                                        @AuthenticationPrincipal org.springframework.security.core.userdetails.User user) {
-//        try {
-//            ChatHistory response = chatService.processMessage(request.getMessage(), user.getUsername(), request.getConversationId());
-//            return ResponseEntity.ok(response);
-//        } catch (Exception e) {
-//            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
-//        }
-//    }
-//
-//    @GetMapping("/history")
-//    public ResponseEntity<List<ChatHistory>> getChatHistory(
-//            @RequestParam(required = false) String conversationId,
-//            @AuthenticationPrincipal org.springframework.security.core.userdetails.User user) {
-//        List<ChatHistory> history = chatService.getUserChatHistory(user.getUsername(), conversationId);
-//        return ResponseEntity.ok(history);
-//    }
 }

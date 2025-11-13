@@ -90,22 +90,33 @@ public class PlaceRecommendationService {
                          placesContext);
 
         try {
-        	// MISTRAL-OPTIMIZED SYSTEM PROMPT
+        	// OPTIMIZED SYSTEM PROMPT
             SystemMessage systemMessage = new SystemMessage("""
                 You are a practical travel expert for Indian destinations.
-                CRITICAL: Return ONLY valid JSON, no other text.
-                - Suggest realistic, popular Indian places
-                - Use practical costs in Indian Rupees
-                - Keep descriptions brief and useful (max 20 words)
-                - recommendedDuration: based on distance
-                - estimatedCost: realistic Indian entry fees
-                - Be specific with place names
+			    CRITICAL: Return ONLY valid JSON, no other text or markdown.
+			    IMPORTANT FORMAT RULES:
+			    - JSON must start with { and end with }
+			    - No ```json or ``` markers
+			    - No additional explanations
+			    - Use double quotes for all strings
+			    - estimatedCost must be numbers (not strings)
+			    - recommendedDuration must be integers
+			    
+			    Content guidelines:
+			    - Suggest realistic, popular Indian places
+			    - Use practical costs in Indian Rupees
+			    - Keep descriptions brief and useful (max 20 words)
+			    - recommendedDuration: realistic hours needed in count
+			    - estimatedCost: realistic Indian entry fees in INR
+			    - Be specific with place names
                 """);
             UserMessage userMessage = new UserMessage(promptText);
             Prompt prompt = new Prompt(List.of(systemMessage, userMessage));
             
-            String aiResponse = chatModel.call(prompt).getResult().getOutput().getText();
-            log.info("Place AI Response: {}", aiResponse);
+            String rawResponse = chatModel.call(prompt).getResult().getOutput().getText();
+            String aiResponse = extractContentFromOpenAIResponse(rawResponse);
+            log.info("Place AI Raw Response: {}", rawResponse);
+            log.info("Place AI Extracted Content: {}", aiResponse);
             
             //  Parse and save places dynamically
             return parseAndSavePlaces(aiResponse, destinationCity);
@@ -191,30 +202,30 @@ public class PlaceRecommendationService {
         return response;
     }
     
- // ROBUST JSON EXTRACTION
     private String extractJsonFromResponse(String response) {
         if (response == null || response.trim().isEmpty()) {
             return "{}";
         }
         
-        // Remove markdown code blocks
-        String cleaned = response.replaceAll("(?i)```json", "")
-                               .replaceAll("```", "")
+        // Remove ALL markdown and extra text
+        String cleaned = response.replaceAll("(?s)```json\\s*", "")  // Remove ```json
+                               .replaceAll("```", "")               // Remove other ```
+                               .replaceAll("^[^{]*", "")            // Remove everything before first {
+                               .replaceAll("[^}]*$", "")            // Remove everything after last }
                                .trim();
         
-        // Extract JSON between first { and last }
-        int start = cleaned.indexOf("{");
-        int end = cleaned.lastIndexOf("}") + 1;
-        
-        if (start >= 0 && end > start && end <= cleaned.length()) {
-            String json = cleaned.substring(start, end);
-            // Basic validation
-            if (json.startsWith("{") && json.endsWith("}")) {
-                return json;
+        // Validate JSON structure
+        if (cleaned.startsWith("{") && cleaned.endsWith("}")) {
+            try {
+                // Test if it's valid JSON
+                objectMapper.readTree(cleaned);
+                return cleaned;
+            } catch (Exception e) {
+                log.warn("Invalid JSON structure: {}", cleaned);
             }
         }
         
-        log.warn("No valid JSON found in place response");
+        log.warn("No valid JSON found in response: {}", response.substring(0, Math.min(100, response.length())));
         return "{}";
     }
     
@@ -365,5 +376,32 @@ public class PlaceRecommendationService {
         response.setRecommendedPlaces(topRated);
         response.setReasoning("Top-rated places in " + city);
         return response;
+    }
+    
+    private String extractContentFromOpenAIResponse(String aiResponse) {
+        try {
+            // Parse the OpenAI response format
+            Map<String, Object> responseMap = objectMapper.readValue(aiResponse, new TypeReference<Map<String, Object>>() {});
+            
+            // Extract content from choices[0].message.content
+            if (responseMap.containsKey("choices") && responseMap.get("choices") instanceof List) {
+                List<?> choices = (List<?>) responseMap.get("choices");
+                if (!choices.isEmpty() && choices.get(0) instanceof Map) {
+                    Map<?, ?> choice = (Map<?, ?>) choices.get(0);
+                    if (choice.containsKey("message") && choice.get("message") instanceof Map) {
+                        Map<?, ?> message = (Map<?, ?>) choice.get("message");
+                        if (message.containsKey("content")) {
+                            return message.get("content").toString();
+                        }
+                    }
+                }
+            }
+            
+            // Fallback: return original response
+            return aiResponse;
+        } catch (Exception e) {
+            log.warn("Failed to parse OpenAI response format, using original response");
+            return aiResponse;
+        }
     }
 }

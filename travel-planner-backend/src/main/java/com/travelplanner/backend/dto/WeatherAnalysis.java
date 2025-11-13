@@ -65,8 +65,7 @@ public class WeatherAnalysis {
 		super();
 		// TODO Auto-generated constructor stub
 	}
-    
-    // Constructors, getters, setters
+   
     
     
 }

@@ -28,5 +28,30 @@
     "name": "spring.ai.ollama.client.connect-timeout",
     "type": "java.lang.String",
     "description": "A description for 'spring.ai.ollama.client.connect-timeout'"
+  },
+  {
+    "name": "opentripmap.api.key",
+    "type": "java.lang.String",
+    "description": "A description for 'opentripmap.api.key'"
+  },
+  {
+    "name": "spring.ai.ollama.base-url",
+    "type": "java.lang.String",
+    "description": "A description for 'spring.ai.ollama.base-url'"
+  },
+  {
+    "name": "spring.ai.ollama.chat.options.temperature",
+    "type": "java.lang.String",
+    "description": "A description for 'spring.ai.ollama.chat.options.temperature'"
+  },
+  {
+    "name": "spring.ai.ollama.base-url",
+    "type": "java.lang.String",
+    "description": "A description for 'spring.ai.ollama.base-url'"
+  },
+  {
+    "name": "spring.ai.ollama.base-url",
+    "type": "java.lang.String",
+    "description": "A description for 'spring.ai.ollama.base-url'"
   }
 ]}

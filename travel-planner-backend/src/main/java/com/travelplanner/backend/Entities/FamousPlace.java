@@ -40,7 +40,6 @@ public class FamousPlace {
         this.category = category;
     }
 
-    // Keep ALL your manual getters/setters (they're good!)
     public Long getId() { return id; }
     public void setId(Long id) { this.id = id; }
     

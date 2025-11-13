@@ -54,10 +54,8 @@ public class Trip {
     
     private LocalDateTime createdAt;
     
-    // ✅ ADD THIS FIELD
     private String conversationId;
         
-    // ✅ ADD GETTER AND SETTER
     public String getConversationId() { 
         return conversationId; 
     }
@@ -65,6 +63,7 @@ public class Trip {
     public void setConversationId(String conversationId) { 
         this.conversationId = conversationId; 
     }
+    
     
     @ManyToMany
     @JoinTable(
@@ -87,7 +86,6 @@ public class Trip {
         this.comfortLevel = comfortLevel;
     }
 
-    // Keep ALL your manual getters/setters (they're perfectly written!)
     public Long getId() { return id; }
     public void setId(Long id) { this.id = id; }
     

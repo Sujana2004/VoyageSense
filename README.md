@@ -77,5 +77,10 @@ git push -u origin front
 
 Merge frontend changes to main through pull requests after review and testing.
 
+# Outputs of this project
+![Image Description]
+(https://raw.githubusercontent.com/Sujana2004/VoyageSense/images/https://github.com/Sujana2004/VoyageSense/blob/images/Screenshot%202025-11-11%20194737.png)
+
+
 # Contribution
 To contribute, please create branches from main or front depending on which part you are working on, submit pull requests, and follow code review processes to maintain project integrity.

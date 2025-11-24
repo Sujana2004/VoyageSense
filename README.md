@@ -79,7 +79,7 @@ Merge frontend changes to main through pull requests after review and testing.
 
 # Outputs of this project
 ![Image Description]
-(https://raw.githubusercontent.com/Sujana2004/VoyageSense/images/https://github.com/Sujana2004/VoyageSense/blob/images/Screenshot%202025-11-11%20194737.png)
+(https://raw.githubusercontent.com/Sujana2004/VoyageSense/images/Screenshot%202025-11-11%20194737.png)
 
 
 # Contribution

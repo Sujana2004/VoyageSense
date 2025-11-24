@@ -78,11 +78,33 @@ git push -u origin front
 Merge frontend changes to main through pull requests after review and testing.
 
 # Outputs of this project
-![Image Description]
-(https://raw.githubusercontent.com/Sujana2004/VoyageSense/images/Screenshot%202025-11-11%20194737.png)
-![Screenshot]
-(https://raw.githubusercontent.com/Sujana2004/VoyageSense/images/Screenshot%202025-11-11%20194737.png)
-
+### User Dashboard
+![UserDashboard](https://raw.githubusercontent.com/Sujana2004/VoyageSense/images/Screenshot%202025-11-11%20194737.png)
+![UserDashboard](https://raw.githubusercontent.com/Sujana2004/VoyageSense/images/Screenshot%202025-11-11%20194747.png)
+## My Trips Tab
+![Mytrips](https://raw.githubusercontent.com/Sujana2004/VoyageSense/images/Screenshot%202025-11-11%20194807.png)
+## Chat Tab
+![Chat](https://raw.githubusercontent.com/Sujana2004/VoyageSense/images/Screenshot%202025-11-11%20194833.png)
+## Create Trip Tab
+![Create Trip](https://raw.githubusercontent.com/Sujana2004/VoyageSense/images/Screenshot%202025-11-11%20194842.png)
+## Places Tab
+![Places](https://raw.githubusercontent.com/Sujana2004/VoyageSense/images/Screenshot%202025-11-11%20194851.png)
+## Login page
+![Login](https://raw.githubusercontent.com/Sujana2004/VoyageSense/images/Screenshot%202025-11-11%20195025.png)
+## User Registration page
+![User Register](https://raw.githubusercontent.com/Sujana2004/VoyageSense/images/Screenshot%202025-11-11%20195041.png)
+## Admin Registration page
+![Admin Register](https://raw.githubusercontent.com/Sujana2004/VoyageSense/images/Screenshot%202025-11-11%20195050.png)
+## Admin Dashboard
+![Admin Dashboard](https://raw.githubusercontent.com/Sujana2004/VoyageSense/images/Screenshot%202025-11-12%20185120.png)
+## User Management (Admin)
+![Admin User Management](https://raw.githubusercontent.com/Sujana2004/VoyageSense/images/Screenshot%202025-11-12%20185347.png)
+## Trip Management (Admin)
+![Admin Trip Management](https://raw.githubusercontent.com/Sujana2004/VoyageSense/images/Screenshot%202025-11-12%20185424.png)
+## Chat Management (Admin)
+![Admin Chat Management](https://raw.githubusercontent.com/Sujana2004/VoyageSense/images/Screenshot%202025-11-12%20185526.png)
+## Analytics Dashboard (Admin)
+![Admin Analytics Dashboard](https://raw.githubusercontent.com/Sujana2004/VoyageSense/images/Screenshot%202025-11-12%20185626.png)
 
 
 # Contribution

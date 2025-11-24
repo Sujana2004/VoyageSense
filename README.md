@@ -4,7 +4,7 @@ VoyageSense is an intelligent travel planning application integrating AI models 
 
 # Project Structure
 travel-planner-backend/ — Backend server handling API logic, data processing, and integration.
-
+ 
 VoyageSenseModel.ipynb — Jupyter Notebook for downloading and running the Ollama LLaMA 3.1 8b-instruct-q4_0 model on Google Colab for travel itinerary planning.
 
 Frontend React app located on the front branch, focusing on interactive map views and user/admin interfaces.
